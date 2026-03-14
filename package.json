@@ -1,22 +1,8 @@
 {
-  "name": "project",
+  "name": "ordem-paranormal-parser",
   "version": "1.0.0",
   "description": "Extrair conteúdo de pdf para json",
-  "main": "index.js",
   "scripts": {
-    "start": "ts-node src/index.ts",
-    "build": "tsc",
-    "dev": "ts-node src/index.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "@types/node": "^25.5.0",
-    "@types/pdf-parse": "^1.1.5",
-    "pdf-parse": "^2.4.5",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "build": "python3 -m py_compile main.py models.py pdf_parser.py creature_parser.py ritual_parser.py"
   }
 }
