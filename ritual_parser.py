@@ -1,82 +1,89 @@
 import re
-from typing import List, Optional
-from models import Ritual
+from typing import List, Dict, Any, Optional
 
 
 class RitualParser:
-    def parse_rituals(self, text: str) -> List[Ritual]:
+    RITUAL_KEYWORDS = [
+        'Círculo', 'Execução', 'Alcance', 'Alvo', 'Duração',
+        'Resistência', 'Efeito', 'Ritual', 'Conjuração'
+    ]
+
+    def extract_rituals(self, blocks: List) -> List[Dict[str, Any]]:
         rituals = []
-        lines = text.split("\n")
 
-        ritual_start_indices = []
-        for i, line in enumerate(lines):
-            if self._is_ritual_title(line):
-                ritual_start_indices.append(i)
+        for block in blocks:
+            title = block.get('title', '').strip()
+            content = block.get('content', '').strip()
 
-        for idx, start in enumerate(ritual_start_indices):
-            end = ritual_start_indices[idx + 1] if idx + 1 < len(ritual_start_indices) else len(lines)
-            section = "\n".join(lines[start:end])
+            if not title or not content:
+                continue
 
-            ritual = self._parse_ritual_section(section)
-            if ritual:
-                rituals.append(ritual)
+            if self._is_ritual_block(title, content):
+                ritual_data = self._parse_ritual_block(title, content)
+                if ritual_data:
+                    rituals.append(ritual_data)
 
         return rituals
 
-    def _is_ritual_title(self, line: str) -> bool:
-        line = line.strip()
-        if not line:
+    def _is_ritual_block(self, title: str, content: str) -> bool:
+        if not title:
             return False
 
-        if re.match(r"^[A-ZÀÁÃÂÉÊÍÓÔÕÚÇ\s\-']+$", line):
-            return len(line) > 3 and len(line) < 100
+        title_lower = title.lower()
 
-        return False
+        excluded_titles = [
+            'livro de regras', 'sumário', 'índice', 'registro de atualizações',
+            'capítulo', 'prefácio', 'introdução', 'créditos', 'agradecimentos',
+            'tabela', 'figura', 'anexo', 'criatura', 'monstro', 'entidade'
+        ]
 
-    def _parse_ritual_section(self, text: str) -> Optional[Ritual]:
-        lines = [line.strip() for line in text.split("\n") if line.strip()]
+        for excluded in excluded_titles:
+            if excluded in title_lower:
+                return False
 
-        if not lines:
+        ritual_indicators = any(keyword in content for keyword in self.RITUAL_KEYWORDS)
+
+        return ritual_indicators
+
+    def _parse_ritual_block(self, title: str, content: str) -> Optional[Dict[str, Any]]:
+        ritual = {
+            'name': title.strip(),
+            'raw_content': content,
+            'extracted_fields': {}
+        }
+
+        extracted = {}
+
+        circulo_match = re.search(r'Círculo[:\s]+(\d+)', content, re.IGNORECASE)
+        if circulo_match:
+            extracted['circulo'] = int(circulo_match.group(1))
+        else:
             return None
 
-        full_text = " ".join(lines)
+        execucao_match = re.search(r'Execução[:\s]+([^\n]+)', content, re.IGNORECASE)
+        if execucao_match:
+            extracted['execucao'] = execucao_match.group(1).strip()
 
-        circle_match = re.search(r"(?:Círculo|Circle)[:\s]+(\d+)", full_text, re.IGNORECASE)
-        if not circle_match:
-            return None
+        alcance_match = re.search(r'Alcance[:\s]+([^\n]+)', content, re.IGNORECASE)
+        if alcance_match:
+            extracted['alcance'] = alcance_match.group(1).strip()
 
-        ritual = Ritual(
-            name=lines[0],
-            circle=int(circle_match.group(1)),
-            execution="",
-            range="",
-            target="",
-            duration="",
-            description="",
-            raw_text=text
-        )
+        alvo_match = re.search(r'Alvo[:\s]+([^\n]+)', content, re.IGNORECASE)
+        if alvo_match:
+            extracted['alvo'] = alvo_match.group(1).strip()
 
-        execution_match = re.search(r"(?:Execução|Execution)[:\s]+([^.]+)", full_text, re.IGNORECASE)
-        if execution_match:
-            ritual.execution = execution_match.group(1).strip()
+        duracao_match = re.search(r'Duração[:\s]+([^\n]+)', content, re.IGNORECASE)
+        if duracao_match:
+            extracted['duracao'] = duracao_match.group(1).strip()
 
-        range_match = re.search(r"(?:Alcance|Range)[:\s]+([^.]+)", full_text, re.IGNORECASE)
-        if range_match:
-            ritual.range = range_match.group(1).strip()
+        resistencia_match = re.search(r'Resistência[:\s]+([^\n]+)', content, re.IGNORECASE)
+        if resistencia_match:
+            extracted['resistencia'] = resistencia_match.group(1).strip()
 
-        target_match = re.search(r"(?:Alvo|Target)[:\s]+([^.]+)", full_text, re.IGNORECASE)
-        if target_match:
-            ritual.target = target_match.group(1).strip()
+        efeito_match = re.search(r'Efeito[:\s]+([^\n]+)', content, re.IGNORECASE)
+        if efeito_match:
+            extracted['efeito'] = efeito_match.group(1).strip()
 
-        duration_match = re.search(r"(?:Duração|Duration)[:\s]+([^.]+)", full_text, re.IGNORECASE)
-        if duration_match:
-            ritual.duration = duration_match.group(1).strip()
-
-        resistance_match = re.search(r"(?:Resistência|Resistance)[:\s]+([^.]+)", full_text, re.IGNORECASE)
-        if resistance_match:
-            ritual.resistance = resistance_match.group(1).strip()
-
-        desc_lines = lines[1:]
-        ritual.description = " ".join(desc_lines).strip()
+        ritual['extracted_fields'] = extracted
 
         return ritual

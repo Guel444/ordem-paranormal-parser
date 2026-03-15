@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
 from pdf_parser import PDFParser
+from creature_parser import CreatureParser
+from ritual_parser import RitualParser
 
 
 def main():
@@ -11,10 +13,11 @@ def main():
         print("")
         print("Argumentos:")
         print("  <caminho-do-pdf>  Caminho para o arquivo PDF")
-        print("  [tipo]            Tipo de extração: creatures, rituals, ou all (padrão: all)")
+        print("  [tipo]            Tipo de extração: all, creatures, rituals (padrão: all)")
         print("")
         print("Exemplos:")
         print("  python main.py livro-regras.pdf")
+        print("  python main.py livro-regras.pdf all")
         print("  python main.py livro-regras.pdf creatures")
         print("  python main.py livro-regras.pdf rituals")
         sys.exit(1)
@@ -37,28 +40,48 @@ def main():
     parser = PDFParser()
 
     try:
-        data = parser.extract_data(pdf_path, extraction_type)
+        data = parser.extract_data(pdf_path)
+
+        output_data = {
+            'metadata': data.metadata,
+            'full_text': data.full_text
+        }
+
+        if extraction_type in ["creatures", "all"]:
+            creature_parser = CreatureParser()
+            blocks_for_creatures = [
+                {'title': block.title, 'content': block.content}
+                for block in data.blocks
+            ]
+            creatures = creature_parser.extract_creatures(blocks_for_creatures)
+            output_data['creatures'] = creatures
+            print(f"Criaturas encontradas: {len(creatures)}")
+
+        if extraction_type in ["rituals", "all"]:
+            ritual_parser = RitualParser()
+            blocks_for_rituals = [
+                {'title': block.title, 'content': block.content}
+                for block in data.blocks
+            ]
+            rituals = ritual_parser.extract_rituals(blocks_for_rituals)
+            output_data['rituals'] = rituals
+            print(f"Rituais encontrados: {len(rituals)}")
 
         pdf_name = Path(pdf_path).stem
         output_file = Path("output") / f"{pdf_name}_{extraction_type}.json"
 
-        parser.save_to_json(data, str(output_file))
-
-        print("Extração concluída!")
-        print("")
-        print("Resultados:")
-
-        if data.creatures:
-            print(f"  - {len(data.creatures)} criatura(s) extraída(s)")
-
-        if data.rituals:
-            print(f"  - {len(data.rituals)} ritual(is) extraído(s)")
+        import json
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(output_data, f, ensure_ascii=False, indent=2)
 
         print("")
         print(f"Arquivo salvo em: {output_file}")
 
     except Exception as e:
         print(f"Erro ao processar PDF: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 

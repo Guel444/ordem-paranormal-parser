@@ -1,101 +1,96 @@
 import re
-from typing import List, Optional
-from models import Creature, Attack, Ability
+from typing import List, Dict, Any, Optional
 
 
 class CreatureParser:
-    def parse_creatures(self, text: str) -> List[Creature]:
+    CREATURE_KEYWORDS = [
+        'VD', 'PV', 'PE', 'Defesa', 'Ataque', 'Dano',
+        'Resistência', 'Imunidade', 'Vulnerabilidade',
+        'Habilidade', 'Perícia', 'Tamanho', 'Deslocamento'
+    ]
+
+    def extract_creatures(self, blocks: List) -> List[Dict[str, Any]]:
         creatures = []
-        lines = text.split("\n")
 
-        creature_start_indices = []
-        for i, line in enumerate(lines):
-            if self._is_creature_title(line):
-                creature_start_indices.append(i)
+        for block in blocks:
+            title = block.get('title', '').strip()
+            content = block.get('content', '').strip()
 
-        for idx, start in enumerate(creature_start_indices):
-            end = creature_start_indices[idx + 1] if idx + 1 < len(creature_start_indices) else len(lines)
-            section = "\n".join(lines[start:end])
+            if not title or not content:
+                continue
 
-            creature = self._parse_creature_section(section)
-            if creature and creature.name:
-                creatures.append(creature)
+            if self._is_creature_block(title, content):
+                creature_data = self._parse_creature_block(title, content)
+                if creature_data:
+                    creatures.append(creature_data)
 
         return creatures
 
-    def _is_creature_title(self, line: str) -> bool:
-        line = line.strip()
-        if not line:
+    def _is_creature_block(self, title: str, content: str) -> bool:
+        if not title:
             return False
 
-        if re.match(r"^[A-ZÀÁÃÂÉÊÍÓÔÕÚÇ\s\-]+$", line):
-            return len(line) > 3 and len(line) < 100
+        title_lower = title.lower()
 
-        return False
-
-    def _parse_creature_section(self, text: str) -> Optional[Creature]:
-        lines = [line.strip() for line in text.split("\n") if line.strip()]
-
-        if not lines:
-            return None
-
-        creature = Creature(
-            name=lines[0],
-            raw_text=text
-        )
-
-        full_text = " ".join(lines)
-
-        vd_match = re.search(r"VD[:\s]+(\d+)", full_text, re.IGNORECASE)
-        if vd_match:
-            creature.vd = int(vd_match.group(1))
-
-        hp_match = re.search(r"PV[:\s]+(\d+d?\d*[\+\-]?\d*)", full_text, re.IGNORECASE)
-        if hp_match:
-            creature.hp = hp_match.group(1)
-
-        category_match = re.search(r"Criatura[:\s]+([^.]+)", full_text, re.IGNORECASE)
-        if category_match:
-            creature.category = category_match.group(1).strip()
-
-        creature.attacks = self._extract_attacks(full_text)
-        creature.abilities = self._extract_abilities(full_text)
-
-        return creature
-
-    def _extract_attacks(self, text: str) -> Optional[List[Attack]]:
-        attacks = []
-
-        attack_patterns = [
-            r"(?:Ataque|Golpe|Investida)[:\s]+([^.]+)",
-            r"(\d+d\d+[\+\-]?\d*)\s+(?:de\s+)?dano"
+        excluded_titles = [
+            'livro de regras', 'sumário', 'índice', 'registro de atualizações',
+            'capítulo', 'prefácio', 'introdução', 'créditos', 'agradecimentos',
+            'tabela', 'figura', 'anexo'
         ]
 
-        for pattern in attack_patterns:
-            matches = re.finditer(pattern, text, re.IGNORECASE)
-            for match in matches:
-                if match.group(1):
-                    attacks.append(Attack(
-                        name=match.group(1).strip(),
-                        description=match.group(0)
-                    ))
+        for excluded in excluded_titles:
+            if excluded in title_lower:
+                return False
 
-        return attacks if attacks else None
+        creature_indicators = any(keyword in content for keyword in self.CREATURE_KEYWORDS)
 
-    def _extract_abilities(self, text: str) -> Optional[List[Ability]]:
-        abilities = []
+        return creature_indicators
 
-        ability_pattern = r"(?:Habilidade|Trait|Poder)[:\s]+([^.]+)"
-        matches = re.finditer(ability_pattern, text, re.IGNORECASE)
+    def _parse_creature_block(self, title: str, content: str) -> Optional[Dict[str, Any]]:
+        creature = {
+            'name': title.strip(),
+            'raw_content': content,
+            'extracted_fields': {}
+        }
 
-        for match in matches:
-            if match.group(1):
-                name_desc = match.group(1).strip()
-                name = name_desc.split(":")[0] if ":" in name_desc else name_desc
+        extracted = {}
 
-                abilities.append(Ability(
-                    name=name,
-                    description=name_desc
-                ))
+        vd_match = re.search(r'VD[:\s]+(\d+)', content, re.IGNORECASE)
+        if vd_match:
+            extracted['vd'] = int(vd_match.group(1))
 
-        return abilities if abilities else None
+        pv_match = re.search(r'PV[:\s]+([0-9d\+\-\s]+)', content, re.IGNORECASE)
+        if pv_match:
+            extracted['pv'] = pv_match.group(1).strip()
+
+        pe_match = re.search(r'PE[:\s]+(\d+)', content, re.IGNORECASE)
+        if pe_match:
+            extracted['pe'] = int(pe_match.group(1))
+
+        defesa_match = re.search(r'Defesa[:\s]+(\d+)', content, re.IGNORECASE)
+        if defesa_match:
+            extracted['defesa'] = int(defesa_match.group(1))
+
+        tamanho_match = re.search(r'Tamanho[:\s]+([^\n]+)', content, re.IGNORECASE)
+        if tamanho_match:
+            extracted['tamanho'] = tamanho_match.group(1).strip()
+
+        deslocamento_match = re.search(r'Deslocamento[:\s]+([^\n]+)', content, re.IGNORECASE)
+        if deslocamento_match:
+            extracted['deslocamento'] = deslocamento_match.group(1).strip()
+
+        resistencias = re.findall(r'Resistência[:\s]+([^\n]+)', content, re.IGNORECASE)
+        if resistencias:
+            extracted['resistencias'] = [r.strip() for r in resistencias]
+
+        imunidades = re.findall(r'Imunidade[:\s]+([^\n]+)', content, re.IGNORECASE)
+        if imunidades:
+            extracted['imunidades'] = [i.strip() for i in imunidades]
+
+        vulnerabilidades = re.findall(r'Vulnerabilidade[:\s]+([^\n]+)', content, re.IGNORECASE)
+        if vulnerabilidades:
+            extracted['vulnerabilidades'] = [v.strip() for v in vulnerabilidades]
+
+        creature['extracted_fields'] = extracted
+
+        return creature
