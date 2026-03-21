@@ -1,6 +1,7 @@
 import json
 import re
 from pathlib import Path
+from typing import List
 from PyPDF2 import PdfReader
 from models import ExtractedData, ContentBlock
 
