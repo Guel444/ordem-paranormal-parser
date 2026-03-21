@@ -12,8 +12,8 @@ class RitualParser:
         rituals = []
 
         for block in blocks:
-            title = block.get('title', '').strip()
-            content = block.get('content', '').strip()
+            title = (block.get('title') or '').strip()
+            content = (block.get('content') or '').strip()
 
             if not title or not content:
                 continue
